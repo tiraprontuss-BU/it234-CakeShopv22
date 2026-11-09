@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ฐานข้อมูลของฉัน</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/sql-wasm.js"></script>
+  <style>
+    :root {
+      --paper: #F3F5FB;
+      --ink: #1B1F3B;
+      --ink-soft: #565C80;
+      --cobalt: #3A4FD9;
+      --cobalt-soft: #E3E7FD;
+      --amber: #B7791F;
+      --amber-soft: #FDF1DC;
+      --green: #2F7A4B;
+      --green-soft: #E3F4E9;
+      --red: #B4405A;
+      --red-soft: #FCE8EC;
+      --line: #DCE0EE;
+      --card: #FFFFFF;
+      --panel: #1B1F3B;
+      --mono: "IBM Plex Mono", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Anuphan", "Leelawadee UI", Tahoma, sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+      padding-bottom: 72px;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 2px; }
+    code { font-family: var(--mono); font-size: .9em; background: var(--cobalt-soft); border-radius: 4px; padding: 0 4px; }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+
+    /* ---------- หัวเว็บ ---------- */
+    .top { padding: 40px 0 20px; }
+    .top h1 { font-size: clamp(2rem, 4.5vw, 3.1rem); line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 700; }
+    .top .desc { margin: 0; color: var(--ink-soft); max-width: 70ch; }
+    .top .author { margin: 6px 0 0; color: var(--ink-soft); font-size: .92rem; }
+    .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .stats span { background: var(--card); border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 14px; font-size: .92rem; }
+    .stats b { font-weight: 700; }
+
+    .session {
+      display: none; align-items: center; flex-wrap: wrap; gap: 10px 16px;
+      background: var(--amber-soft); border: 1.5px solid #EED3A5; border-radius: 14px;
+      padding: 12px 16px; margin: 4px 0 16px; font-size: .95rem;
+    }
+    .session.on { display: flex; }
+    .session.server { background: var(--green-soft); border-color: #B6DEC4; }
+    .btn:disabled { opacity: .5; cursor: wait; }
+    .session p { margin: 0; flex: 1 1 320px; }
+
+    .btn {
+      border: 1.5px solid var(--ink); background: var(--ink); color: #fff;
+      border-radius: 10px; padding: 7px 14px; cursor: pointer; font-weight: 600; font-size: .93rem;
+    }
+    .btn.ghost { background: transparent; color: var(--ink); }
+    .btn.small { padding: 3px 10px; font-size: .85rem; border-radius: 8px; }
+    .btn.danger { background: transparent; color: var(--red); border-color: #E8B4BE; }
+
+    /* ---------- แท็บ ---------- */
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin: 8px 0 24px; overflow-x: auto; }
+    .tab {
+      border: 0; background: none; padding: 10px 16px; cursor: pointer; white-space: nowrap;
+      font-weight: 600; color: var(--ink-soft); border-bottom: 3px solid transparent; margin-bottom: -2px;
+    }
+    .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--cobalt); }
+    .panel[hidden] { display: none; }
+    .lead { color: var(--ink-soft); margin: 0 0 16px; max-width: 75ch; }
+
+    /* ---------- แผนผัง ---------- */
+    .diagram-scroll { overflow-x: auto; padding-bottom: 8px; }
+    .diagram { position: relative; display: flex; gap: 96px; align-items: flex-start; padding: 8px 4px 16px; min-width: min-content; }
+    .diagram svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+    .level { display: flex; flex-direction: column; gap: 28px; }
+    .entity { width: 260px; background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; position: relative; z-index: 1; }
+    .entity.dim { opacity: .35; }
+    .entity.lit { border-color: var(--cobalt); box-shadow: 0 0 0 4px var(--cobalt-soft); }
+    .entity header {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+      padding: 10px 14px; border-bottom: 1.5px solid var(--line);
+    }
+    .entity header strong { font-family: var(--mono); font-weight: 500; font-size: .98rem; word-break: break-all; }
+    .entity header small { color: var(--ink-soft); white-space: nowrap; }
+    .entity ul { list-style: none; margin: 0; padding: 6px 0; }
+    .entity li { display: flex; align-items: center; gap: 6px; padding: 3px 14px; font-size: .86rem; }
+    .entity li .cname { font-family: var(--mono); flex: 1; word-break: break-all; }
+    .entity li .ctype { color: var(--ink-soft); font-family: var(--mono); font-size: .78rem; }
+    .badge { font-family: var(--mono); font-size: .7rem; font-weight: 500; border-radius: 5px; padding: 0 5px; line-height: 1.6; }
+    .b-pk { background: var(--amber-soft); color: var(--amber); }
+    .b-fk { background: var(--cobalt-soft); color: var(--cobalt); }
+    .b-uq { background: var(--green-soft); color: var(--green); }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .88rem; color: var(--ink-soft); margin: 4px 0 14px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .rels { margin-top: 18px; }
+    .rels h3 { font-size: 1.05rem; margin: 0 0 8px; }
+    .rels ul { margin: 0; padding-left: 20px; }
+    .rels li { margin: 3px 0; }
+    .rel-line { stroke: #8D96C8; stroke-width: 2; fill: none; }
+    .rel-line.lit { stroke: var(--cobalt); stroke-width: 3; }
+
+    /* ---------- ข้อมูลในตาราง ---------- */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .chip {
+      border: 1.5px solid var(--line); background: var(--card); border-radius: 999px;
+      padding: 5px 14px; cursor: pointer; font-family: var(--mono); font-size: .9rem;
+    }
+    .chip small { font-family: "Anuphan", sans-serif; color: var(--ink-soft); margin-left: 4px; }
+    .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .chip[aria-pressed="true"] small { color: #C9CDEA; }
+    .chip.soft { font-family: "Anuphan", sans-serif; }
+    #store-filter:empty { display: none; }
+
+    /* ---------- หน้าร้าน ---------- */
+    .store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; margin-bottom: 14px; }
+    .item {
+      background: var(--card); border: 1.5px solid var(--line); border-radius: 18px; overflow: hidden;
+      display: flex; flex-direction: column; cursor: pointer; text-align: left; padding: 0;
+    }
+    .item:hover { border-color: #B9C3F3; }
+    .item .pic { aspect-ratio: 4 / 3; background: var(--cobalt-soft); display: grid; place-items: center; font-size: 3rem; overflow: hidden; }
+    .item .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item .info { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .item h3 { margin: 0; font-size: 1.08rem; line-height: 1.35; }
+    .item .price { font-size: 1.25rem; font-weight: 700; color: var(--amber); }
+    .item .price small { font-size: .82rem; font-weight: 500; }
+    .item .meta { color: var(--ink-soft); font-size: .86rem; }
+    .item .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .item .tag { background: var(--cobalt-soft); color: var(--cobalt); border-radius: 999px; padding: 1px 10px; font-size: .8rem; }
+    .item .out { background: var(--red-soft); color: var(--red); border-radius: 999px; padding: 1px 10px; font-size: .8rem; font-weight: 600; }
+    .item.soldout .pic { filter: grayscale(1); opacity: .6; }
+
+    /* ---------- รูปในตาราง / ชื่อภาษาไทย ---------- */
+    img.thumb { width: 52px; height: 40px; object-fit: cover; border-radius: 6px; display: block; background: var(--cobalt-soft); }
+    .detail img.big { width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-bottom: 10px; }
+    .preview { width: 100%; max-height: 120px; object-fit: cover; border-radius: 8px; margin-top: 6px; display: none; }
+    .preview.on { display: block; }
+    th .raw, label .raw, .chip .raw { display: block; font-family: var(--mono); font-weight: 400; font-size: .72rem; color: var(--ink-soft); }
+    .chip .raw { display: inline; margin-left: 4px; }
+    .chip[aria-pressed="true"] .raw { color: #C9CDEA; }
+
+    .data-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 10px; }
+    .toolbar h2 { font-family: var(--mono); font-weight: 500; font-size: 1.3rem; margin: 0; }
+    .toolbar label { display: inline-flex; align-items: center; gap: 6px; font-size: .92rem; cursor: pointer; }
+    .count { color: var(--ink-soft); font-size: .9rem; }
+    .search-row { margin-bottom: 12px; }
+    .search-row input {
+      width: 100%; max-width: 460px; border: 1.5px solid var(--line); background: var(--card);
+      border-radius: 999px; padding: 9px 18px;
+    }
+    mark { background: #FFE58A; color: inherit; border-radius: 3px; padding: 0 1px; }
+
+    .grid-scroll { overflow: auto; max-height: 560px; background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; }
+    table.data { border-collapse: collapse; width: 100%; font-size: .9rem; }
+    table.data th {
+      position: sticky; top: 0; background: #EEF0F8; text-align: left; font-weight: 600;
+      font-family: var(--mono); font-size: .82rem; padding: 8px 10px; border-bottom: 1.5px solid var(--line); white-space: nowrap;
+    }
+    table.data td { padding: 7px 10px; border-bottom: 1px solid #EEF0F6; vertical-align: top; max-width: 320px; overflow-wrap: anywhere; }
+    table.data tr.clickable { cursor: pointer; }
+    table.data tr.clickable:hover td { background: #F7F8FD; }
+    table.data tr.fresh td { background: var(--green-soft); }
+    table.data tr.picked td { background: var(--cobalt-soft); }
+    .null { color: #9AA0B4; font-style: italic; }
+    .ref { display: inline-block; background: var(--cobalt-soft); color: var(--cobalt); border-radius: 6px; padding: 0 6px; font-size: .82rem; margin-left: 4px; }
+    .empty { padding: 28px; color: var(--ink-soft); text-align: center; }
+
+    .side { display: flex; flex-direction: column; gap: 16px; }
+    .box { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 16px; }
+    .box h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .box .hint { margin: 0 0 12px; color: var(--ink-soft); font-size: .88rem; }
+    .field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+    .field label { font-size: .9rem; font-weight: 600; }
+    .field label .req { color: var(--red); }
+    .field small { color: var(--ink-soft); font-size: .8rem; }
+    .field input, .field select {
+      border: 1.5px solid var(--line); border-radius: 9px; padding: 7px 10px; background: #fff; width: 100%;
+    }
+    .auto { font-size: .85rem; color: var(--ink-soft); background: var(--paper); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+    .msg { border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 10px; }
+    #add-form.editing .field input, #add-form.editing .field select { border-color: #B9C3F3; background: #FAFBFF; }
+    .form-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+    td.acts { white-space: nowrap; }
+    .msg.ok { background: var(--green-soft); color: #1E5735; }
+    .msg.err { background: var(--red-soft); color: #7D2337; }
+    .msg small { display: block; font-family: var(--mono); font-size: .76rem; opacity: .8; margin-top: 4px; overflow-wrap: anywhere; }
+
+    .detail dl { margin: 0 0 8px; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: .9rem; }
+    .detail dt { font-family: var(--mono); color: var(--ink-soft); font-size: .82rem; }
+    .detail dd { margin: 0; overflow-wrap: anywhere; }
+    .detail h4 { font-size: .95rem; margin: 14px 0 6px; }
+    .detail h4 code { font-size: .85rem; }
+    .mini { border-collapse: collapse; width: 100%; font-size: .82rem; }
+    .mini th, .mini td { border-bottom: 1px solid #EEF0F6; padding: 4px 6px; text-align: left; }
+    .mini th { font-family: var(--mono); font-weight: 500; color: var(--ink-soft); }
+
+    details.sql { margin-top: 10px; }
+    details.sql summary { cursor: pointer; font-size: .88rem; color: var(--cobalt); font-weight: 600; }
+    pre.code {
+      font-family: var(--mono); font-size: .82rem; background: var(--panel); color: #E6E8F5;
+      border-radius: 10px; padding: 10px 12px; margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .kw { color: #9FB4FF; } .str { color: #F2C98A; } .num { color: #8EE0C1; }
+
+    /* ---------- ลองเขียน SQL ---------- */
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    textarea.editor {
+      width: 100%; min-height: 150px; resize: vertical; font-family: var(--mono); font-size: .92rem;
+      background: var(--panel); color: #E6E8F5; border: 0; border-radius: 14px; padding: 14px 16px; line-height: 1.6;
+    }
+    .run-row { display: flex; align-items: center; gap: 12px; margin: 10px 0 16px; flex-wrap: wrap; }
+    .run-row small { color: var(--ink-soft); }
+
+    /* ---------- แถบ SQL ล่าสุด ---------- */
+    .log {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      background: var(--panel); color: #E6E8F5; border-top: 1px solid #2E3460;
+    }
+    .log-bar { display: flex; align-items: center; gap: 12px; padding: 10px 32px; max-width: 1240px; margin: 0 auto; cursor: pointer; border: 0; background: none; width: 100%; text-align: left; color: inherit; }
+    .log-bar .lbl { color: #9FB4FF; font-size: .85rem; white-space: nowrap; font-weight: 600; }
+    .log-bar code { background: none; color: #E6E8F5; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; padding: 0; }
+    .log-bar .n { font-size: .8rem; color: #A9AED0; white-space: nowrap; }
+    .log.flash .log-bar { animation: flash .9s ease-out; }
+    @keyframes flash { from { background: #3A4FD9; } to { background: transparent; } }
+    .log-list { display: none; max-height: 40vh; overflow: auto; padding: 0 32px 14px; max-width: 1240px; margin: 0 auto; }
+    .log.open .log-list { display: block; }
+    .log-list div { border-top: 1px solid #2E3460; padding: 8px 0; }
+    .log-list .when { font-size: .78rem; color: #A9AED0; }
+    .log-list pre { margin: 2px 0 0; font-family: var(--mono); font-size: .82rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+    /* ---------- สถานะโหลด / error ---------- */
+    .state { background: var(--card); border: 2px solid var(--line); border-radius: 16px; padding: 24px; margin: 24px 0; line-height: 1.75; }
+    .state.err { border-color: #E05267; }
+    .state b.title { display: block; font-size: 1.15rem; margin-bottom: 4px; }
+    .state.err b.title { color: var(--red); }
+    .drop { border: 2px dashed #AEB6DA; border-radius: 14px; padding: 18px; text-align: center; margin-top: 14px; background: var(--paper); }
+    .drop.over { border-color: var(--cobalt); background: var(--cobalt-soft); }
+
+    footer { margin-top: 40px; font-size: .85rem; color: var(--ink-soft); }
+
+    @media (max-width: 900px) {
+      .wrap { padding: 0 16px; }
+      .data-layout { grid-template-columns: 1fr; }
+      .log-bar, .log-list { padding-left: 16px; padding-right: 16px; }
+      .diagram { gap: 64px; }
+      .entity { width: 230px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .log.flash .log-bar { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1 id="title">กำลังเปิดฐานข้อมูล…</h1>
+      <p class="desc" id="desc"></p>
+      <p class="author" id="author"></p>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <div id="state"></div>
+
+    <div id="app" hidden>
+      <div class="session" id="session">
+        <p id="session-text"></p>
+        <button class="btn small" id="download">ดาวน์โหลด database.db ฉบับนี้</button>
+        <button class="btn small ghost" id="reset">กลับเป็นข้อมูลเดิม</button>
+      </div>
+
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="store">หน้าร้าน (ลูกค้าเห็น)</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="data">หลังร้าน (จัดการข้อมูล)</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="diagram">แผนผังฐานข้อมูล</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="sql">ลองเขียน SQL</button>
+      </nav>
+
+      <section class="panel" id="tab-store">
+        <p class="lead">หน้านี้คือสิ่งที่ลูกค้าเห็น ใช้ข้อมูลชุดเดียวกับแท็บ “หลังร้าน” แค่จัดหน้าตาให้สวยงาม เว็บดึงแต่ละแถวจากตารางมาสร้างเป็นการ์ด 1 ใบ</p>
+        <div class="chips" id="store-tables" role="group" aria-label="เลือกตารางที่จะแสดงหน้าร้าน"></div>
+        <div class="chips" id="store-filter" role="group" aria-label="กรองตามหมวด"></div>
+        <div class="store-grid" id="store-grid"></div>
+        <details class="sql" id="store-sql"><summary>ดู SQL ที่หน้าร้านใช้ดึงข้อมูล</summary><pre class="code"></pre></details>
+      </section>
+
+      <section class="panel" id="tab-diagram" hidden>
+        <p class="lead">ตารางทั้งหมดในฐานข้อมูล เส้นเชื่อมคือ FOREIGN KEY ปลายแยกสามขาอยู่ฝั่ง “หลาย” ปลายขีดตั้งอยู่ฝั่ง “หนึ่ง” ชี้ที่ตารางเพื่อดูว่าเชื่อมกับตารางไหนบ้าง</p>
+        <div class="legend">
+          <span><span class="badge b-pk">PK</span> Primary Key</span>
+          <span><span class="badge b-fk">FK</span> Foreign Key</span>
+          <span><span class="badge b-uq">UQ</span> UNIQUE ห้ามซ้ำ</span>
+          <span><b style="color:var(--red)">*</b> NOT NULL ห้ามว่าง</span>
+        </div>
+        <div class="diagram-scroll"><div class="diagram" id="diagram"></div></div>
+        <div class="rels" id="rels"></div>
+      </section>
+
+      <section class="panel" id="tab-data" hidden>
+        <div class="chips" id="table-chips" role="group" aria-label="เลือกตาราง"></div>
+        <div class="data-layout">
+          <div>
+            <div class="toolbar">
+              <h2 id="t-name"></h2>
+              <span class="count" id="t-count"></span>
+              <label id="join-wrap"><input type="checkbox" id="join-toggle" checked> แสดงข้อมูลจากตารางที่เชื่อมกัน (JOIN)</label>
+            </div>
+            <div class="search-row">
+              <input type="search" id="search" placeholder="ค้นหาในตารางนี้ เช่น ชื่อ อีเมล หรือคำในหมวดหมู่" aria-label="ค้นหาในตารางนี้">
+            </div>
+            <div class="grid-scroll" id="grid"></div>
+            <details class="sql" id="grid-sql"><summary>ดู SQL ที่เว็บใช้ดึงตารางนี้</summary><pre class="code"></pre></details>
+          </div>
+          <div class="side">
+            <div class="box detail" id="detail" hidden></div>
+            <div class="box" id="form-box"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="tab-sql" hidden>
+        <p class="lead">พิมพ์คำสั่ง SQL แล้วกด “รัน” หรือกด Ctrl + Enter ลองกดตัวอย่างด้านล่างได้ ตัวอย่างสร้างจากตารางในฐานข้อมูลของคุณเอง</p>
+        <div class="examples" id="examples"></div>
+        <textarea class="editor" id="editor" spellcheck="false" aria-label="ช่องพิมพ์ SQL"></textarea>
+        <div class="run-row">
+          <button class="btn" id="run">รัน SQL</button>
+          <small id="run-hint">คำสั่งที่แก้ข้อมูล (INSERT, UPDATE, DELETE) มีผลแค่ในเบราว์เซอร์นี้</small>
+        </div>
+        <div id="sql-result"></div>
+      </section>
+
+      <footer>
+        ข้อมูลทั้งหมดอ่านจากไฟล์ <a href="#" id="db-link">database.db</a> ด้วย SQLite ที่ทำงานในเบราว์เซอร์ (sql.js) · IT234 Introduction to Database
+      </footer>
+    </div>
+  </div>
+
+  <div class="log" id="log" hidden>
+    <button class="log-bar" id="log-bar" aria-expanded="false">
+      <span class="lbl">SQL ล่าสุดที่เว็บรัน</span>
+      <code id="log-last">ยังไม่มี · ลองเลือกตาราง เพิ่มข้อมูล หรือกดที่แถวในตาราง</code>
+      <span class="n" id="log-n"></span>
+    </button>
+    <div class="log-list" id="log-list"></div>
+  </div>
+
+  <script>
+    // =====================================================================
+    //  นักศึกษาไม่ต้องแก้ไฟล์นี้
+    //  แค่วางไฟล์ database.db (ฐานข้อมูล SQLite ของคุณ) และ site.json ไว้ข้าง ๆ
+    // =====================================================================
+
+    var DB_NAMES = ["database.db", "database.sqlite", "database.sqlite3", "database.db3"];
+    var SQL = null;          // ตัว SQLite ที่ทำงานในเบราว์เซอร์
+    var db = null;           // ฐานข้อมูลที่เปิดอยู่
+    var originalBytes = null;
+    var dbFileName = "database.db";
+    var schema = [];         // ข้อมูลโครงสร้างของทุกตาราง
+    var current = null;      // ตารางที่กำลังดูอยู่
+    var changes = 0;
+    var logItems = [];
+    var freshRowKey = null;
+    var restored = false;      // เปิดจากข้อมูลที่บันทึกไว้ในเบราว์เซอร์หรือไม่
+    var canSave = true;        // เบราว์เซอร์นี้บันทึกข้อมูลได้หรือไม่ (IndexedDB)
+    var serverMode = false;    // true = เว็บรันบนเซิร์ฟเวอร์ (เช่น PythonAnywhere) ที่บันทึกลงไฟล์ .db จริง
+    var serverVersion = null;  // เวอร์ชันของไฟล์บนเซิร์ฟเวอร์ ใช้ตรวจว่ามีคนแก้ข้อมูลหรือยัง
+    var pendingRemote = false;
+    var siteInfo = {};         // ข้อมูลจาก site.json
+    var storeTable = null;     // ตารางที่แสดงในหน้าร้าน
+    var storeFilter = null;    // หมวดที่เลือกกรองในหน้าร้าน
+
+    // ---------- เริ่มต้น ----------
+    start();
+
+    function start() {
+      loadSiteInfo();
+      if (typeof initSqlJs !== "function") {
+        return showState("err", "โหลดตัว SQLite ไม่สำเร็จ",
+          "เว็บต้องโหลดไลบรารี sql.js จากอินเทอร์เน็ต ตรวจว่าเครื่องต่อเน็ตอยู่ แล้วรีเฟรชหน้าอีกครั้ง");
+      }
+      initSqlJs({ locateFile: function (f) { return "https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/" + f; } })
+        .then(function (lib) { SQL = lib; return detectServer(); })
+        .then(function (isServer) {
+          if (!isServer) return tryLoad(0);
+          serverMode = true;
+          canSave = false;
+          return fetchServerDb().then(function (bytes) {
+            dbFileName = "database.db";
+            openDb(bytes);
+            setInterval(pollServer, 5000);
+          });
+        })
+        .catch(function (e) {
+          showState("err", serverMode ? "ติดต่อฐานข้อมูลบนเซิร์ฟเวอร์ไม่ได้" : "โหลดตัว SQLite ไม่สำเร็จ",
+            (serverMode
+              ? "ตรวจว่าอัปโหลด database.db ไว้ในโฟลเดอร์เดียวกับ flask_app.py และกด Reload ในแท็บ Web แล้ว"
+              : "ตรวจว่าเครื่องต่อเน็ตอยู่ แล้วรีเฟรชหน้าอีกครั้ง") +
+            "<br><small>" + esc(e && e.message) + "</small>");
+        });
+    }
+
+    // ---------- โหมดเซิร์ฟเวอร์ ----------
+    // ถ้าเว็บนี้รันด้วย flask_app.py จะมี api/info ตอบกลับมา (บน GitHub Pages ไม่มี จึงเป็นโหมดปกติ)
+    function detectServer() {
+      if (location.protocol === "file:") return Promise.resolve(false);
+      return fetch("api/info?v=" + Date.now(), { cache: "no-store" })
+        .then(function (r) {
+          if (!r.ok || !/json/.test(r.headers.get("content-type") || "")) return false;
+          return r.json().then(function (j) { return j && j.mode === "server"; });
+        })
+        .catch(function () { return false; });
+    }
+
+    function fetchServerDb() {
+      return fetch("api/db?v=" + Date.now(), { cache: "no-store" })
+        .then(function (r) {
+          if (!r.ok) throw new Error("api/db ตอบกลับ " + r.status);
+          serverVersion = r.headers.get("X-DB-Version") || serverVersion;
+          return r.arrayBuffer();
+        })
+        .then(function (buf) {
+          if (!isSqlite(buf)) throw new Error("ไฟล์ database.db บนเซิร์ฟเวอร์ไม่ใช่ฐานข้อมูล SQLite");
+          return new Uint8Array(buf);
+        });
+    }
+
+    // โหลดไฟล์ล่าสุดจากเซิร์ฟเวอร์มาแทนที่ข้อมูลในเบราว์เซอร์
+    function reloadFromServer() {
+      return fetchServerDb().then(function (bytes) {
+        if (db) db.close();
+        db = new SQL.Database(bytes);
+        db.exec("PRAGMA foreign_keys = ON;");
+        originalBytes = bytes;
+        readSchema();
+      });
+    }
+
+    function rerenderKeepView() {
+      if (!findTable(current)) current = schema.length ? schema[0].name : null;
+      renderStats(); renderChips(); renderDiagram(); renderTable(); renderExamples(); renderStore();
+    }
+
+    // ทุก 5 วินาที ถามเซิร์ฟเวอร์ว่ามีคนแก้ข้อมูลหรือยัง
+    function pollServer() {
+      if (document.hidden) return;
+      fetch("api/version?v=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.version === serverVersion) return;
+          if (userIsTyping()) { pendingRemote = true; updateSession(); return; }
+          return reloadFromServer().then(function () {
+            pendingRemote = false;
+            rerenderKeepView();
+            updateSession();
+            logSql("-- มีการแก้ไขข้อมูลบนเซิร์ฟเวอร์ (อาจเป็นจากคนอื่น) โหลดข้อมูลล่าสุดแล้ว");
+          });
+        })
+        .catch(function () {});
+    }
+
+    function userIsTyping() {
+      var form = document.getElementById("add-form");
+      if (!form) return false;
+      if (form.contains(document.activeElement)) return true;
+      return Array.prototype.some.call(form.querySelectorAll("[data-col]"), function (el) {
+        return el.dataset.orig !== undefined ? el.value !== el.dataset.orig : el.value !== "";
+      });
+    }
+
+    // ส่งคำสั่งที่แก้ข้อมูล: โหมดปกติรันในเบราว์เซอร์ / โหมดเซิร์ฟเวอร์ส่งไปบันทึกที่ไฟล์จริง
+    function execWrite(sql, params, onOk, onErr) {
+      if (!serverMode) {
+        try { db.run(sql, params || []); }
+        catch (e) { return onErr(e); }
+        return onOk({ lastId: rows("SELECT last_insert_rowid() AS id")[0].id, changes: rows("SELECT changes() AS n")[0].n });
+      }
+      fetch("api/exec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sql: sql, params: params || [] })
+      })
+        .then(function (r) { return r.json().catch(function () { return { ok: false, error: "เซิร์ฟเวอร์ตอบกลับผิดรูปแบบ (" + r.status + ")" }; }); })
+        .then(function (j) {
+          if (!j.ok) return onErr(new Error(j.error || "บันทึกไม่สำเร็จ"));
+          serverVersion = j.version || serverVersion;
+          return reloadFromServer().then(function () { onOk({ lastId: j.lastrowid, changes: j.changes }); });
+        })
+        .catch(function (e) { onErr(new Error("ติดต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่ (" + (e && e.message) + ")")); });
+    }
+
+    function tryLoad(i) {
+      if (location.protocol === "file:") return showPicker(
+        "เปิดไฟล์ในเครื่องโดยตรง เว็บจึงอ่าน database.db เองไม่ได้",
+        "ไม่เป็นไร เลือกไฟล์ .db จากเครื่องด้านล่างเพื่อดูตัวอย่างก่อนได้ พอเอาขึ้นเว็บจริงแล้ว เว็บจะเปิด database.db ให้อัตโนมัติ");
+      if (i >= DB_NAMES.length) return showPicker(
+        "หาไฟล์ database.db ไม่เจอ",
+        "ตรวจว่าอัปโหลดไฟล์ฐานข้อมูลแล้ว ชื่อต้องเป็น <code>database.db</code> ตัวพิมพ์เล็กทั้งหมด และอยู่ระดับเดียวกับ index.html ไม่ได้อยู่ในโฟลเดอร์ย่อย");
+      var name = DB_NAMES[i];
+      return fetch(name + "?v=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+        .then(function (buf) {
+          if (!buf || !isSqlite(buf)) {
+            if (buf && i === 0 && !looksLikeHtml(buf)) return showPicker(
+              "ไฟล์ database.db ไม่ใช่ฐานข้อมูล SQLite",
+              "ไฟล์อาจว่างเปล่า หรือเป็นไฟล์โปรเจกต์ของ DB Browser (<code>.sqbpro</code>) ที่ถูกเปลี่ยนชื่อ ให้ใช้ไฟล์ที่สร้างจากเมนู New Database แล้วกด Write Changes ก่อนอัปโหลด");
+            return tryLoad(i + 1);
+          }
+          dbFileName = name;
+          openWithSaved(new Uint8Array(buf));
+        })
+        .catch(function () { return tryLoad(i + 1); });
+    }
+
+    function isSqlite(buf) {
+      var head = new Uint8Array(buf.slice(0, 16));
+      return String.fromCharCode.apply(null, head) === "SQLite format 3\u0000";
+    }
+    function looksLikeHtml(buf) {
+      var t = new TextDecoder().decode(buf.slice(0, 64)).trim();
+      return t.charAt(0) === "<";
+    }
+
+    function loadSiteInfo() {
+      fetch("site.json?v=" + Date.now(), { cache: "no-store" })
+        .then(function (r) { return r.ok ? r.text() : null; })
+        .then(function (t) {
+          if (!t || t.trim().charAt(0) === "<") return;
+          var info;
+          try { info = JSON.parse(t); } catch (e) {
+            document.getElementById("author").innerHTML = '<span style="color:var(--red)">site.json เขียน syntax ผิด จึงใช้ชื่อเว็บเริ่มต้นแทน</span>';
+            return;
+          }
+          siteInfo = info || {};
+          var title = (info.emoji ? info.emoji + " " : "") + (info.title || "ฐานข้อมูลของฉัน");
+          document.getElementById("title").textContent = title;
+          document.title = info.title || "ฐานข้อมูลของฉัน";
+          document.getElementById("desc").textContent = info.description || "";
+          if (info.author) document.getElementById("author").textContent = "ออกแบบโดย " + info.author;
+          if (db) renderAll();   // ถ้าฐานข้อมูลเปิดก่อน site.json ให้วาดใหม่พร้อมชื่อภาษาไทย
+        })
+        .catch(function () {});
+    }
+
+    // ---------- ชื่อภาษาไทยจาก site.json ("labels") ----------
+    // ตั้งได้ทั้ง "ชื่อตาราง", "ชื่อคอลัมน์" และ "ตาราง.คอลัมน์"
+    function labelsMap() { return (siteInfo && typeof siteInfo.labels === "object" && siteInfo.labels) || {}; }
+    function tLabel(t) { var l = labelsMap()[t]; return typeof l === "string" && l ? l : null; }
+    function cLabel(t, c) {
+      var m = labelsMap(), l = m[t + "." + c] || m[c];
+      return typeof l === "string" && l ? l : null;
+    }
+    // หัวคอลัมน์: ชื่อไทยตัวใหญ่ ชื่อจริงในฐานข้อมูลตัวเล็กด้านล่าง
+    function colHead(t, c) {
+      var l = cLabel(t, c);
+      return l ? esc(l) + '<span class="raw">' + esc(c) + "</span>" : esc(c);
+    }
+    function tableName(t) {
+      var l = tLabel(t);
+      return l ? esc(l) + '<span class="raw">' + esc(t) + "</span>" : esc(t);
+    }
+
+    // ---------- รูปภาพ ----------
+    var IMG_NAME = /(^|_)(image|img|photo|picture|pic|thumbnail|thumb|cover|avatar|รูป)/i;
+    var IMG_URL = /^https?:\/\/\S+(\.(png|jpe?g|gif|webp|svg|avif)(\?\S*)?$|images\.unsplash\.com|imgur\.com|googleusercontent\.com)/i;
+    function isImageUrl(v) { return typeof v === "string" && IMG_URL.test(v.trim()); }
+    function findImageCols(tname, cols) {
+      return cols.filter(function (c) {
+        if (!/CHAR|TEXT|CLOB|^$/i.test(c.type || "")) return false;
+        if (IMG_NAME.test(c.name)) return true;
+        try {
+          var sample = rows("SELECT " + q(c.name) + " AS v FROM " + q(tname) + " WHERE " + q(c.name) + " LIKE 'http%' LIMIT 3");
+          return sample.length > 0 && sample.every(function (s) { return isImageUrl(s.v); });
+        } catch (e) { return false; }
+      }).map(function (c) { return c.name; });
+    }
+    function imgTag(url, cls, alt) {
+      if (!isImageUrl(url) && !/^https?:\/\//i.test(String(url || ""))) return "";
+      return '<img class="' + cls + '" src="' + esc(url) + '" alt="' + esc(alt || "") + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility=\'hidden\'">';
+    }
+
+    // original = ไฟล์ต้นฉบับจากเว็บ, restoredChanges = จำนวนครั้งที่แก้ไว้ (ถ้าเปิดจากที่บันทึกในเบราว์เซอร์)
+    function openDb(bytes, original, restoredChanges) {
+      originalBytes = original || bytes;
+      try {
+        db = new SQL.Database(bytes);
+        db.exec("PRAGMA foreign_keys = ON;");
+        readSchema();
+      } catch (e) {
+        return showPicker("เปิดไฟล์ฐานข้อมูลไม่ได้", "ไฟล์อาจเสียหาย ลองบันทึกใหม่จาก DB Browser for SQLite<br><small>" + esc(e.message) + "</small>");
+      }
+      if (document.getElementById("title").textContent === "กำลังเปิดฐานข้อมูล…") {
+        document.getElementById("title").textContent = "ฐานข้อมูลของฉัน";
+      }
+      document.getElementById("state").innerHTML = "";
+      document.getElementById("app").hidden = false;
+      document.getElementById("log").hidden = false;
+      document.getElementById("db-link").href = dbFileName;
+      document.getElementById("db-link").textContent = dbFileName;
+      changes = restoredChanges || 0;
+      restored = !!restoredChanges;
+      updateSession();
+      if (!schema.length) {
+        showState("info", "ฐานข้อมูลนี้ยังไม่มีตาราง",
+          "เปิดไฟล์ใน DB Browser for SQLite แล้วสร้างตารางด้วย <code>CREATE TABLE</code> กด Write Changes แล้วอัปโหลดไฟล์ใหม่ หรือลองสร้างตารางในแท็บ “ลองเขียน SQL” ได้เลย");
+      }
+      renderAll();
+    }
+
+    // ---------- อ่านโครงสร้างตาราง ----------
+    function readSchema() {
+      var names = rows("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+      schema = names.map(function (r) {
+        var t = r.name;
+        var cols = rows("PRAGMA table_info(" + q(t) + ")");
+        var fks = rows("PRAGMA foreign_key_list(" + q(t) + ")");
+        var unique = {};
+        rows("PRAGMA index_list(" + q(t) + ")").forEach(function (ix) {
+          if (!ix.unique || ix.origin === "pk") return;
+          var ic = rows("PRAGMA index_info(" + q(ix.name) + ")");
+          if (ic.length === 1) unique[ic[0].name] = true;
+        });
+        var pkCols = cols.filter(function (c) { return c.pk > 0; }).sort(function (a, b) { return a.pk - b.pk; }).map(function (c) { return c.name; });
+        var hasRowid = !/WITHOUT\s+ROWID/i.test((rows("SELECT sql FROM sqlite_master WHERE name = ?", [t])[0] || {}).sql || "");
+        var autoPk = pkCols.length === 1 && /^INTEGER$/i.test((cols.filter(function (c) { return c.name === pkCols[0]; })[0] || {}).type || "");
+        return {
+          name: t,
+          cols: cols,
+          pk: pkCols,
+          hasRowid: hasRowid,
+          autoPk: autoPk ? pkCols[0] : null,
+          unique: unique,
+          fks: fks.map(function (f) { return { id: f.id, from: f.from, table: f.table, to: f.to }; }),
+          count: rows("SELECT COUNT(*) AS n FROM " + q(t))[0].n,
+          imageCols: findImageCols(t, cols)
+        };
+      });
+      // หาคอลัมน์ปลายทางที่ไม่ได้ระบุ (อ้างถึง PK ของตารางแม่)
+      schema.forEach(function (t) {
+        t.fks.forEach(function (f) {
+          if (!f.to) { var p = findTable(f.table); f.to = p && p.pk.length ? p.pk[0] : "rowid"; }
+        });
+      });
+    }
+
+    function findTable(name) {
+      for (var i = 0; i < schema.length; i++) if (schema[i].name.toLowerCase() === String(name).toLowerCase()) return schema[i];
+      return null;
+    }
+    function rowKeyCols(t) { return t.pk.length ? t.pk : (t.hasRowid ? ["rowid"] : []); }
+
+    // คอลัมน์ที่ใช้เป็น "ชื่อเรียก" ของแถว เช่น name, title
+    function labelCol(t) {
+      var cols = t.cols.filter(function (c) { return t.pk.indexOf(c.name) === -1 && !isFkCol(t, c.name); });
+      var pref = cols.filter(function (c) { return /(^|_)(name|title|nickname|label|username|ชื่อ)/i.test(c.name); })[0];
+      if (pref) return pref.name;
+      var txt = cols.filter(function (c) { return /CHAR|TEXT|CLOB|^$/i.test(c.type || ""); })[0];
+      return txt ? txt.name : null;
+    }
+    function isFkCol(t, col) { return t.fks.some(function (f) { return f.from === col; }); }
+    function singleFks(t) {
+      var byId = {};
+      t.fks.forEach(function (f) { (byId[f.id] = byId[f.id] || []).push(f); });
+      return Object.keys(byId).filter(function (k) { return byId[k].length === 1; }).map(function (k) { return byId[k][0]; });
+    }
+
+    // ---------- วาดทุกส่วน ----------
+    function renderAll() {
+      renderStats();
+      renderDiagram();
+      renderChips();
+      if (!current || !findTable(current)) current = schema.length ? schema[0].name : null;
+      renderTable();
+      renderExamples();
+      renderStore();
+    }
+
+    // ---------- หน้าร้าน (ลูกค้าเห็น) ----------
+    function defaultStoreTable() {
+      var want = siteInfo && siteInfo.store && findTable(siteInfo.store);
+      if (want) return want.name;
+      var withImg = schema.filter(function (t) { return t.imageCols.length; })[0];
+      if (withImg) return withImg.name;
+      var withFk = schema.filter(function (t) { return singleFks(t).length && labelCol(t); })[0];
+      if (withFk) return withFk.name;
+      var any = schema.filter(function (t) { return labelCol(t); })[0] || schema[0];
+      return any ? any.name : null;
+    }
+
+    function renderStore(logIt) {
+      var grid = document.getElementById("store-grid");
+      if (!schema.length) { grid.innerHTML = '<div class="empty">ยังไม่มีตารางให้แสดง</div>'; return; }
+      if (!storeTable || !findTable(storeTable)) { storeTable = defaultStoreTable(); storeFilter = null; }
+      var t = findTable(storeTable);
+
+      // ปุ่มเลือกตาราง
+      var tb = document.getElementById("store-tables");
+      tb.innerHTML = schema.map(function (x) {
+        return '<button class="chip soft" data-t="' + esc(x.name) + '" aria-pressed="' + (x.name === t.name) + '">' + tableName(x.name) + "</button>";
+      }).join("");
+      tb.querySelectorAll(".chip").forEach(function (b) {
+        b.onclick = function () { storeTable = b.dataset.t; storeFilter = null; renderStore(true); };
+      });
+
+      // ปุ่มกรองตามตารางแม่ (FK ตัวแรกที่มีชื่อเรียก) เช่น กรองเค้กตามหมวด
+      var fk = singleFks(t).filter(function (f) { var p = findTable(f.table); return p && labelCol(p); })[0];
+      var built = buildSelect(t, true);
+      var sql = built.sql, shown = built.shown, params = [];
+      var fb = document.getElementById("store-filter");
+      if (fk) {
+        var p = findTable(fk.table), lc = labelCol(p);
+        var opts = [];
+        try { opts = rows("SELECT " + q(fk.to) + " AS v, " + q(lc) + " AS l FROM " + q(p.name) + " ORDER BY " + q(lc) + " LIMIT 30"); } catch (e) {}
+        fb.innerHTML = '<button class="chip soft" data-v="" aria-pressed="' + (storeFilter === null) + '">ทั้งหมด</button>' +
+          opts.map(function (o) { return '<button class="chip soft" data-v="' + esc(o.v) + '" aria-pressed="' + (storeFilter !== null && String(storeFilter) === String(o.v)) + '">' + esc(o.l) + "</button>"; }).join("");
+        fb.querySelectorAll(".chip").forEach(function (b) {
+          b.onclick = function () {
+            var v = b.dataset.v;
+            storeFilter = v === "" ? null : (/^-?\d+$/.test(v) ? Number(v) : v);
+            renderStore(true);
+          };
+        });
+        if (storeFilter !== null) {
+          var where = "\nWHERE t." + q(fk.from) + " = ";
+          var at = /\nORDER BY/.test(sql) ? "\nORDER BY" : "\nLIMIT 200;";
+          sql = sql.replace(at, where + "?" + at);
+          shown = shown.replace(at, where + lit(storeFilter) + at);
+          params = [storeFilter];
+        }
+      } else {
+        fb.innerHTML = "";
+      }
+
+      var data;
+      try { data = rows(sql, params); } catch (e) { grid.innerHTML = '<div class="empty">' + friendly(e).html + "</div>"; return; }
+      document.querySelector("#store-sql pre").innerHTML = highlight(shown);
+      if (logIt === true) logSql(shown);
+      if (!data.length) { grid.innerHTML = '<div class="empty">ยังไม่มีข้อมูลในตารางนี้ เพิ่มได้ที่แท็บ “หลังร้าน”</div>'; return; }
+
+      var lc0 = labelCol(t);
+      var imgCol = t.imageCols[0];
+      var priceCol = t.cols.filter(function (c) { return /(^|_)(price|cost|fee|amount|ราคา)/i.test(c.name); })[0];
+      var stockCol = t.cols.filter(function (c) { return /(^|_)(stock|qty|quantity|remain|คงเหลือ)/i.test(c.name); })[0];
+      var shownCols = {};
+      [lc0, imgCol, priceCol && priceCol.name, stockCol && stockCol.name].forEach(function (n) { if (n) shownCols[n] = true; });
+      rowKeyCols(t).forEach(function (k) { shownCols[k] = true; });
+
+      grid.innerHTML = data.map(function (r, i) {
+        var title = lc0 ? r[lc0] : keyOf(t, r);
+        var out = stockCol && Number(r[stockCol.name]) === 0;
+        var pic = imgCol && r[imgCol] ? imgTag(r[imgCol], "", title) : "";
+        var tags = singleFks(t).map(function (f) {
+          var l = built.labels[f.from] && r[built.labels[f.from]];
+          shownCols[f.from] = true;
+          return l ? '<span class="tag">#' + esc(l) + "</span>" : "";
+        }).join("");
+        var extra = t.cols.filter(function (c) { return !shownCols[c.name] && r[c.name] !== null && r[c.name] !== ""; }).slice(0, 2)
+          .map(function (c) { return '<div class="meta">' + esc(cLabel(t.name, c.name) || c.name) + ": " + esc(r[c.name]) + "</div>"; }).join("");
+        return '<button class="item' + (out ? " soldout" : "") + '" data-i="' + i + '" type="button">' +
+          '<div class="pic">' + (pic || esc(siteInfo.emoji || "🗂️")) + "</div>" +
+          '<div class="info"><h3>' + esc(title === null || title === undefined ? "(ไม่มีชื่อ)" : title) + "</h3>" +
+          (priceCol && r[priceCol.name] !== null ? '<div class="price">' + esc(fmtNum(r[priceCol.name])) + " <small>บาท</small></div>" : "") +
+          (stockCol ? '<div class="meta">' + (out ? '<span class="out">หมดแล้ว</span>' : esc(cLabel(t.name, stockCol.name) || stockCol.name) + ": " + esc(r[stockCol.name])) + "</div>" : "") +
+          extra + (tags ? '<div class="tags">' + tags + "</div>" : "") + "</div></button>";
+      }).join("");
+      grid.querySelectorAll(".item").forEach(function (el) {
+        el.onclick = function () {
+          // กดการ์ด = ไปดูแถวนี้ที่หลังร้าน
+          switchTab("data");
+          selectTable(t.name);
+          showDetail(t, data[+el.dataset.i]);
+        };
+      });
+    }
+
+    function fmtNum(v) {
+      var n = Number(v);
+      return isNaN(n) ? String(v) : n.toLocaleString("th-TH", { maximumFractionDigits: 2 });
+    }
+
+    function renderStats() {
+      var nRows = schema.reduce(function (s, t) { return s + t.count; }, 0);
+      var nRel = schema.reduce(function (s, t) { return s + t.fks.length; }, 0);
+      document.getElementById("stats").innerHTML =
+        "<span><b>" + schema.length + "</b> ตาราง</span>" +
+        "<span><b>" + nRows + "</b> แถวข้อมูล</span>" +
+        "<span><b>" + nRel + "</b> ความสัมพันธ์ (FK)</span>";
+    }
+
+    // ---------- แผนผัง ER ----------
+    function levelOf(t, seen) {
+      seen = seen || {};
+      if (seen[t.name]) return 0;
+      seen[t.name] = true;
+      var lv = 0;
+      t.fks.forEach(function (f) {
+        var p = findTable(f.table);
+        if (p && p.name !== t.name) lv = Math.max(lv, 1 + levelOf(p, Object.assign({}, seen)));
+      });
+      return lv;
+    }
+
+    // จัดคอลัมน์: ตารางแม่อยู่ซ้าย ตารางลูกอยู่ขวา และดึงตารางแม่ให้อยู่ติดกับตารางลูก
+    // เพื่อไม่ให้เส้นวิ่งผ่านหลังตารางอื่น
+    function layoutLevels() {
+      var lv = {};
+      schema.forEach(function (t) { lv[t.name] = levelOf(t); });
+      for (var round = 0; round < schema.length; round++) {
+        var moved = false;
+        schema.forEach(function (t) {
+          var kids = [];
+          schema.forEach(function (c) {
+            if (c.name === t.name) return;
+            c.fks.forEach(function (f) { if (String(f.table).toLowerCase() === t.name.toLowerCase()) kids.push(lv[c.name]); });
+          });
+          if (!kids.length) return;
+          var want = Math.min.apply(null, kids) - 1;
+          if (want > lv[t.name]) { lv[t.name] = want; moved = true; }
+        });
+        if (!moved) break;
+      }
+      var levels = [];
+      schema.forEach(function (t) { var l = lv[t.name]; (levels[l] = levels[l] || []).push(t); });
+      return levels;
+    }
+
+    function renderDiagram() {
+      var box = document.getElementById("diagram");
+      var levels = layoutLevels();
+      box.innerHTML = '<svg id="lines" aria-hidden="true"></svg>' + levels.filter(Boolean).map(function (group) {
+        return '<div class="level">' + group.map(entityHtml).join("") + "</div>";
+      }).join("");
+      box.querySelectorAll(".entity").forEach(function (el) {
+        el.addEventListener("mouseenter", function () { focusEntity(el.dataset.t); });
+        el.addEventListener("mouseleave", function () { focusEntity(null); });
+        el.addEventListener("click", function () { selectTable(el.dataset.t); switchTab("data"); });
+      });
+      renderRelList();
+      requestAnimationFrame(drawLines);
+    }
+
+    function entityHtml(t) {
+      return '<article class="entity" tabindex="0" data-t="' + esc(t.name) + '" title="กดเพื่อดูข้อมูลในตารางนี้">' +
+        "<header><strong>" + esc(t.name) + "</strong><small>" + t.count + " แถว</small></header><ul>" +
+        t.cols.map(function (c) {
+          var b = "";
+          if (c.pk) b += '<span class="badge b-pk">PK</span>';
+          if (isFkCol(t, c.name)) b += '<span class="badge b-fk">FK</span>';
+          if (t.unique[c.name]) b += '<span class="badge b-uq">UQ</span>';
+          return '<li data-c="' + esc(c.name) + '"><span class="cname">' + esc(c.name) +
+            (c.notnull ? '<b style="color:var(--red)">*</b>' : "") + "</span>" + b +
+            '<span class="ctype">' + esc((c.type || "").toLowerCase()) + "</span></li>";
+        }).join("") + "</ul></article>";
+    }
+
+    function renderRelList() {
+      var items = [];
+      schema.forEach(function (t) {
+        t.fks.forEach(function (f) {
+          items.push("<li>1 แถวใน <code>" + esc(f.table) + "</code> มีได้หลายแถวใน <code>" + esc(t.name) +
+            "</code> &nbsp;(<code>" + esc(t.name) + "." + esc(f.from) + "</code> → <code>" + esc(f.table) + "." + esc(f.to) + "</code>)</li>");
+        });
+      });
+      document.getElementById("rels").innerHTML = items.length
+        ? "<h3>ความสัมพันธ์ในฐานข้อมูลนี้</h3><ul>" + items.join("") + "</ul>"
+        : '<p class="lead">ยังไม่มี FOREIGN KEY ระหว่างตาราง ลองเพิ่มคอลัมน์ที่ใช้ <code>REFERENCES</code> เพื่อเชื่อมตารางเข้าด้วยกัน</p>';
+    }
+
+    function drawLines() {
+      var box = document.getElementById("diagram");
+      var svg = document.getElementById("lines");
+      if (!svg || box.offsetParent === null) return;
+      var base = box.getBoundingClientRect();
+      svg.setAttribute("width", box.scrollWidth);
+      svg.setAttribute("height", box.scrollHeight);
+      var out = "";
+      schema.forEach(function (t) {
+        t.fks.forEach(function (f) {
+          var from = box.querySelector('.entity[data-t="' + cssEsc(t.name) + '"] li[data-c="' + cssEsc(f.from) + '"]');
+          var p = findTable(f.table);
+          var to = p && box.querySelector('.entity[data-t="' + cssEsc(p.name) + '"] li[data-c="' + cssEsc(f.to) + '"]');
+          if (!from || !to) return;
+          var a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+          var ay = a.top + a.height / 2 - base.top, by = b.top + b.height / 2 - base.top;
+          var ax, bx, path, dirA, dirB;
+          if (Math.abs(a.left - b.left) < 5) {           // อยู่คอลัมน์เดียวกัน: อ้อมออกด้านขวา
+            ax = a.right - base.left; bx = b.right - base.left; dirA = 1; dirB = 1;
+            path = "M" + ax + "," + ay + " C" + (ax + 60) + "," + ay + " " + (bx + 60) + "," + by + " " + bx + "," + by;
+          } else if (b.left < a.left) {                    // ตารางแม่อยู่ซ้าย
+            ax = a.left - base.left; bx = b.right - base.left; dirA = -1; dirB = 1;
+            var m = (ax + bx) / 2;
+            path = "M" + ax + "," + ay + " C" + m + "," + ay + " " + m + "," + by + " " + bx + "," + by;
+          } else {                                         // ตารางแม่อยู่ขวา
+            ax = a.right - base.left; bx = b.left - base.left; dirA = 1; dirB = -1;
+            var m2 = (ax + bx) / 2;
+            path = "M" + ax + "," + ay + " C" + m2 + "," + ay + " " + m2 + "," + by + " " + bx + "," + by;
+          }
+          var key = esc(t.name) + "|" + esc(p.name);
+          out += '<g data-rel="' + key + '"><path class="rel-line" d="' + path + '"/>' +
+            // ฝั่ง "หลาย" (crow's foot)
+            '<path class="rel-line" d="M' + (ax + dirA * 12) + "," + ay + " L" + ax + "," + (ay - 7) + " M" + (ax + dirA * 12) + "," + ay + " L" + ax + "," + ay + " M" + (ax + dirA * 12) + "," + ay + " L" + ax + "," + (ay + 7) + '"/>' +
+            // ฝั่ง "หนึ่ง"
+            '<path class="rel-line" d="M' + (bx + dirB * 8) + "," + (by - 7) + " L" + (bx + dirB * 8) + "," + (by + 7) + '"/></g>';
+        });
+      });
+      svg.innerHTML = out;
+    }
+
+    function focusEntity(name) {
+      var box = document.getElementById("diagram");
+      var linked = {};
+      if (name) {
+        linked[name] = true;
+        schema.forEach(function (t) {
+          t.fks.forEach(function (f) {
+            if (t.name === name) linked[findTable(f.table) ? findTable(f.table).name : f.table] = true;
+            if (String(f.table).toLowerCase() === name.toLowerCase()) linked[t.name] = true;
+          });
+        });
+      }
+      box.querySelectorAll(".entity").forEach(function (el) {
+        el.classList.toggle("dim", !!name && !linked[el.dataset.t]);
+        el.classList.toggle("lit", !!name && el.dataset.t === name);
+      });
+      box.querySelectorAll("g[data-rel]").forEach(function (g) {
+        var parts = g.getAttribute("data-rel").split("|");
+        var on = !!name && (unesc(parts[0]) === name || unesc(parts[1]) === name);
+        g.querySelectorAll("path").forEach(function (p) { p.classList.toggle("lit", on); });
+      });
+    }
+
+    // ---------- ข้อมูลในตาราง ----------
+    function renderChips() {
+      document.getElementById("table-chips").innerHTML = schema.map(function (t) {
+        return '<button class="chip" data-t="' + esc(t.name) + '" aria-pressed="' + (t.name === current) + '">' +
+          (tLabel(t.name) ? '<span style="font-family:Anuphan,sans-serif">' + esc(tLabel(t.name)) + '</span><span class="raw">' + esc(t.name) + "</span>" : esc(t.name)) +
+          "<small>" + t.count + "</small></button>";
+      }).join("");
+      document.querySelectorAll("#table-chips .chip").forEach(function (b) {
+        b.onclick = function () { selectTable(b.dataset.t); };
+      });
+    }
+
+    function selectTable(name) {
+      current = name;
+      freshRowKey = null;
+      document.querySelectorAll("#table-chips .chip").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.t === name ? "true" : "false"); });
+      document.getElementById("detail").hidden = true;
+      document.getElementById("search").value = "";
+      renderTable(true);
+    }
+
+    // term = คำค้นหา: ค้นในทุกคอลัมน์ของตาราง และในชื่อจากตารางที่ JOIN มา
+    function buildSelect(t, withJoin, term) {
+      var keyCols = rowKeyCols(t);
+      var sel = [];
+      var searchIn = [];
+      if (keyCols[0] === "rowid") sel.push("t.rowid AS " + q("__rowid"));
+      t.cols.forEach(function (c) {
+        sel.push("t." + q(c.name));
+        if (!/BLOB/i.test(c.type || "")) searchIn.push("t." + q(c.name));
+      });
+      var joins = [];
+      var labels = {};
+      if (withJoin) {
+        singleFks(t).forEach(function (f, i) {
+          var p = findTable(f.table);
+          var lc = p && labelCol(p);
+          if (!lc) return;
+          var alias = "r" + (i + 1);
+          var as = f.from + "__label";
+          labels[f.from] = as;
+          sel.push(alias + "." + q(lc) + " AS " + q(as));
+          joins.push("LEFT JOIN " + q(p.name) + " AS " + alias + " ON " + alias + "." + q(f.to) + " = t." + q(f.from));
+          searchIn.push(alias + "." + q(lc));
+        });
+      }
+      var where = "", shownWhere = "", params = [];
+      if (term) {
+        // ส่งคำค้นเป็น parameter (?) ไม่เอาไปต่อเป็นคำสั่ง SQL ตรง ๆ กัน SQL Injection
+        where = "\nWHERE " + searchIn.map(function (c) { return c + " LIKE ?"; }).join("\n   OR ");
+        shownWhere = "\nWHERE " + searchIn.map(function (c) { return c + " LIKE " + lit("%" + term + "%"); }).join("\n   OR ");
+        params = searchIn.map(function () { return "%" + term + "%"; });
+      }
+      var order = keyCols.length ? "\nORDER BY " + keyCols.map(function (k) { return "t." + q(k); }).join(", ") : "";
+      var head = "SELECT " + sel.join(",\n       ") + "\nFROM " + q(t.name) + " AS t" + (joins.length ? "\n" + joins.join("\n") : "");
+      return {
+        sql: head + where + order + "\nLIMIT 200;",
+        shown: head + shownWhere + order + "\nLIMIT 200;",
+        params: params,
+        labels: labels
+      };
+    }
+
+    // ทำไฮไลต์คำที่ค้นเจอ (แยกข้อความก่อน แล้วค่อย escape ทีละชิ้น)
+    function markCell(v, term) {
+      if (!term || v === null || v === undefined || v instanceof Uint8Array) return cell(v);
+      var text = String(v), low = text.toLowerCase(), t = term.toLowerCase();
+      var out = "", i = 0, j;
+      while (t && (j = low.indexOf(t, i)) !== -1) {
+        out += esc(text.slice(i, j)) + "<mark>" + esc(text.slice(j, j + t.length)) + "</mark>";
+        i = j + t.length;
+      }
+      return out + esc(text.slice(i));
+    }
+
+    function renderTable(logIt) {
+      var t = findTable(current);
+      var grid = document.getElementById("grid");
+      var formBox = document.getElementById("form-box");
+      if (!t) {
+        document.getElementById("t-name").textContent = "";
+        document.getElementById("t-count").textContent = "";
+        grid.innerHTML = '<div class="empty">ยังไม่มีตารางให้แสดง</div>';
+        formBox.innerHTML = "";
+        document.getElementById("grid-sql").hidden = true;
+        return;
+      }
+      document.getElementById("grid-sql").hidden = false;
+      var canJoin = singleFks(t).some(function (f) { var p = findTable(f.table); return p && labelCol(p); });
+      document.getElementById("join-wrap").style.display = canJoin ? "" : "none";
+      var withJoin = canJoin && document.getElementById("join-toggle").checked;
+      var term = document.getElementById("search").value.trim();
+      var built = buildSelect(t, withJoin, term);
+      var data;
+      try { data = rows(built.sql, built.params); } catch (e) { grid.innerHTML = '<div class="empty">' + friendly(e).html + "</div>"; return; }
+      if (logIt === true) logSql(built.shown);
+      document.getElementById("t-name").textContent = tLabel(t.name) ? tLabel(t.name) + " · " + t.name : t.name;
+      document.getElementById("t-count").textContent = term
+        ? "พบ " + data.length + (data.length === 200 ? "+" : "") + " จาก " + t.count + " แถว"
+        : (t.count > 200 ? "แสดง 200 จาก " + t.count + " แถว" : t.count + " แถว");
+      document.querySelector("#grid-sql pre").innerHTML = highlight(built.shown);
+      document.querySelector("#grid-sql summary").textContent = term ? "ดู SQL ที่เว็บใช้ค้นหา" : "ดู SQL ที่เว็บใช้ดึงตารางนี้";
+
+      var keyCols = rowKeyCols(t);
+      if (!data.length) {
+        grid.innerHTML = term
+          ? '<div class="empty">ไม่พบข้อมูลที่มีคำว่า “' + esc(term) + '” ลองพิมพ์คำอื่น หรือลบคำค้นเพื่อดูทั้งหมด</div>'
+          : '<div class="empty">ตารางนี้ยังไม่มีข้อมูล ลองเพิ่มแถวแรกจากฟอร์มด้านขวา</div>';
+      } else {
+        grid.innerHTML = '<table class="data"><thead><tr>' +
+          t.cols.map(function (c) { return "<th>" + colHead(t.name, c.name) + "</th>"; }).join("") +
+          (keyCols.length ? "<th></th>" : "") + "</tr></thead><tbody>" +
+          data.map(function (r, i) {
+            var key = keyOf(t, r);
+            return '<tr class="' + (keyCols.length ? "clickable" : "") + (key === freshRowKey ? " fresh" : "") + '" data-i="' + i + '">' +
+              t.cols.map(function (c) {
+                var v = r[c.name];
+                var label = built.labels[c.name] ? r[built.labels[c.name]] : undefined;
+                if (t.imageCols.indexOf(c.name) !== -1 && v) return '<td title="' + esc(v) + '">' + imgTag(v, "thumb", "") + "</td>";
+                return "<td>" + markCell(v, term) + (label !== undefined && label !== null ? '<span class="ref">' + markCell(label, term) + "</span>" : "") + "</td>";
+              }).join("") +
+              (keyCols.length ? '<td class="acts"><button class="btn small ghost" data-edit="' + i + '" title="แก้ไขแถวนี้">แก้ไข</button> <button class="btn small danger" data-del="' + i + '" title="ลบแถวนี้">ลบ</button></td>' : "") +
+              "</tr>";
+          }).join("") + "</tbody></table>";
+        grid.querySelectorAll("tr.clickable").forEach(function (tr) {
+          tr.addEventListener("click", function (ev) {
+            if (ev.target.closest("[data-del], [data-edit]")) return;
+            grid.querySelectorAll("tr.picked").forEach(function (x) { x.classList.remove("picked"); });
+            tr.classList.add("picked");
+            showDetail(t, data[+tr.dataset.i]);
+          });
+        });
+        grid.querySelectorAll("[data-del]").forEach(function (b) {
+          b.addEventListener("click", function () { deleteRow(t, data[+b.dataset.del]); });
+        });
+        grid.querySelectorAll("[data-edit]").forEach(function (b) {
+          b.addEventListener("click", function () {
+            grid.querySelectorAll("tr.picked").forEach(function (x) { x.classList.remove("picked"); });
+            b.closest("tr").classList.add("picked");
+            renderForm(t, data[+b.dataset.edit]);
+            document.getElementById("form-box").scrollIntoView({ block: "nearest", behavior: "smooth" });
+          });
+        });
+        var fresh = grid.querySelector("tr.fresh");
+        if (fresh) fresh.scrollIntoView({ block: "nearest" });
+      }
+      renderForm(t);
+    }
+
+    function keyOf(t, r) {
+      return rowKeyCols(t).map(function (k) { return String(r[k === "rowid" ? "__rowid" : k]); }).join("|");
+    }
+
+    function whereFor(t, r) {
+      var keyCols = rowKeyCols(t);
+      return {
+        sql: keyCols.map(function (k) { return (k === "rowid" ? "rowid" : q(k)) + " = ?"; }).join(" AND "),
+        params: keyCols.map(function (k) { return r[k === "rowid" ? "__rowid" : k]; })
+      };
+    }
+
+    // รายละเอียดของแถว + ข้อมูลในตารางอื่นที่อ้างถึงแถวนี้
+    function showDetail(t, r) {
+      var box = document.getElementById("detail");
+      var bigImg = t.imageCols.length && r[t.imageCols[0]] ? imgTag(r[t.imageCols[0]], "big", "") : "";
+      var html = "<h3>รายละเอียดแถวนี้</h3><p class=\"hint\">แบบเดียวกับหน้าโปรไฟล์ในเว็บจริง ที่ดึงข้อมูลจากหลายตารางมาแสดงรวมกัน</p>" + bigImg + "<dl>" +
+        t.cols.map(function (c) { return "<dt>" + esc(cLabel(t.name, c.name) || c.name) + "</dt><dd>" + cell(r[c.name]) + "</dd>"; }).join("") + "</dl>";
+      var sqls = [];
+      schema.forEach(function (child) {
+        child.fks.forEach(function (f) {
+          if (String(f.table).toLowerCase() !== t.name.toLowerCase()) return;
+          var val = r[f.to === "rowid" ? "__rowid" : f.to];
+          var built = buildSelect(child, true);
+          var sql = built.sql.replace(/\nORDER BY[\s\S]*$/, "").replace(/\nLIMIT 200;$/, "") +
+            "\nWHERE t." + q(f.from) + " = " + lit(val) + "\nLIMIT 50;";
+          if (/ORDER BY|LIMIT 200/.test(sql)) return;
+          var list;
+          try { list = rows(sql); } catch (e) { return; }
+          sqls.push(sql);
+          html += "<h4>ใน <code>" + esc(child.name) + "</code> ที่อ้างถึงแถวนี้ (" + list.length + ")</h4>";
+          if (!list.length) { html += '<p class="hint">ยังไม่มี</p>'; return; }
+          var show = child.cols.filter(function (c) { return c.name !== f.from; }).slice(0, 4);
+          html += '<table class="mini"><tr>' + show.map(function (c) { return "<th>" + esc(c.name) + "</th>"; }).join("") + "</tr>" +
+            list.map(function (x) {
+              return "<tr>" + show.map(function (c) {
+                var lab = built.labels[c.name] ? x[built.labels[c.name]] : null;
+                return "<td>" + cell(x[c.name]) + (lab !== null && lab !== undefined ? '<span class="ref">' + esc(lab) + "</span>" : "") + "</td>";
+              }).join("") + "</tr>";
+            }).join("") + "</table>";
+        });
+      });
+      if (!sqls.length) html += '<p class="hint">ยังไม่มีตารางอื่นที่เชื่อมมาที่ตารางนี้</p>';
+      else html += '<details class="sql"><summary>ดู SQL ที่ใช้ดึงข้อมูลส่วนนี้</summary><pre class="code">' + highlight(sqls.join("\n\n")) + "</pre></details>";
+      box.innerHTML = html;
+      box.hidden = false;
+      sqls.forEach(function (s) { logSql(s); });
+    }
+
+    // ---------- ฟอร์มเพิ่ม / แก้ไขข้อมูล (สร้างจากโครงสร้างตาราง) ----------
+    // editRow = แถวที่จะแก้ (ไม่ส่งมา = ฟอร์มเพิ่มข้อมูล)
+    function renderForm(t, editRow) {
+      var box = document.getElementById("form-box");
+      var editing = !!editRow;
+      var fkOf = {};
+      singleFks(t).forEach(function (f) { fkOf[f.from] = f; });
+      var whereText = editing ? rowKeyCols(t).map(function (k) { return k + " = " + (editRow[k === "rowid" ? "__rowid" : k]); }).join(", ") : "";
+      var html = editing
+        ? '<h3>แก้ไขแถวใน ' + (tLabel(t.name) ? esc(tLabel(t.name)) + ' ' : '') + '<code>' + esc(t.name) + '</code></h3><p class="hint">กำลังแก้แถวที่ <code>' + esc(whereText) + '</code> แก้แล้วกดบันทึก เว็บจะรันคำสั่ง UPDATE</p><form id="add-form" class="editing" novalidate>'
+        : '<h3>เพิ่มข้อมูลใน ' + (tLabel(t.name) ? esc(tLabel(t.name)) + ' ' : '') + '<code>' + esc(t.name) + '</code></h3><p class="hint">ฟอร์มนี้สร้างอัตโนมัติจากคอลัมน์ในตาราง เหมือนฟอร์มสมัครสมาชิกในเว็บจริง</p><form id="add-form" novalidate>';
+      t.cols.forEach(function (c, i) {
+        if (c.name === t.autoPk) {
+          html += editing
+            ? '<div class="auto"><code>' + esc(c.name) + "</code> = " + esc(editRow[c.name]) + " (Primary Key ใช้ระบุแถว ไม่ต้องแก้)</div>"
+            : '<div class="auto"><code>' + esc(c.name) + "</code> ฐานข้อมูลจะสร้างเลขให้อัตโนมัติ</div>";
+          return;
+        }
+        var id = "f" + i;
+        var type = (c.type || "").toUpperCase();
+        var hint = [];
+        if (editing) { if (!c.notnull) hint.push("เว้นว่างได้ (จะเป็น NULL)"); }
+        else if (c.dflt_value !== null) hint.push("เว้นว่างได้ ค่าเริ่มต้น " + c.dflt_value);
+        else if (!c.notnull) hint.push("เว้นว่างได้");
+        if (t.unique[c.name]) hint.push("ห้ามซ้ำกับที่มีอยู่");
+        var input;
+        if (fkOf[c.name]) {
+          var f = fkOf[c.name];
+          var p = findTable(f.table);
+          var lc = p && labelCol(p);
+          var opts = [];
+          try {
+            opts = rows("SELECT " + q(f.to) + " AS v" + (lc ? ", " + q(lc) + " AS l" : "") + " FROM " + q(f.table) + " ORDER BY 1 LIMIT 500");
+          } catch (e) {}
+          input = '<select id="' + id + '" data-col="' + esc(c.name) + '"><option value="">— เลือก —</option>' +
+            opts.map(function (o) { return '<option value="' + esc(o.v) + '">' + esc(o.v) + (o.l !== undefined && o.l !== null ? " · " + esc(o.l) : "") + "</option>"; }).join("") + "</select>";
+          hint.unshift("เลือกจากตาราง " + f.table + " (FOREIGN KEY)");
+        } else if (/BOOL/.test(type)) {
+          input = '<select id="' + id + '" data-col="' + esc(c.name) + '"><option value=""></option><option value="1">1 · ใช่</option><option value="0">0 · ไม่ใช่</option></select>';
+        } else {
+          var it = "text", extra = "";
+          if (/INT/.test(type)) { it = "number"; extra = ' step="1"'; }
+          else if (/REAL|FLOA|DOUB|NUMERIC|DECIMAL/.test(type)) { it = "number"; extra = ' step="any"'; }
+          else if (/^DATE$/.test(type)) it = "date";
+          else if (/mail/i.test(c.name)) it = "email";
+          var isImg = t.imageCols.indexOf(c.name) !== -1;
+          if (isImg) { it = "url"; hint.push("วางลิงก์รูปภาพ (https://...)"); }
+          input = '<input id="' + id + '" type="' + it + '"' + extra + ' data-col="' + esc(c.name) + '" autocomplete="off"' + (isImg ? ' data-img="1"' : "") + ">" +
+            (isImg ? '<img class="preview" alt="ตัวอย่างรูป" referrerpolicy="no-referrer" onerror="this.classList.remove(\'on\')">' : "");
+        }
+        var lab = cLabel(t.name, c.name);
+        html += '<div class="field"><label for="' + id + '">' + esc(lab || c.name) + (c.notnull && c.dflt_value === null ? ' <span class="req">*</span>' : "") +
+          (lab ? '<span class="raw">' + esc(c.name) + " · " + esc((c.type || "").toLowerCase()) + "</span>"
+               : ' <span style="color:var(--ink-soft);font-weight:400">' + esc((c.type || "").toLowerCase()) + "</span>") + "</label>" + input +
+          (hint.length ? "<small>" + esc(hint.join(" · ")) + "</small>" : "") + "</div>";
+      });
+      html += editing
+        ? '<div class="form-acts"><button class="btn" type="submit">บันทึกการแก้ไข</button> <button class="btn ghost" type="button" id="cancel-edit">ยกเลิก</button></div></form><div id="form-msg"></div>'
+        : '<button class="btn" type="submit">บันทึกลงฐานข้อมูล</button></form><div id="form-msg"></div>';
+      box.innerHTML = html;
+      // ตัวอย่างรูปใต้ช่องลิงก์รูปภาพ
+      box.querySelectorAll("input[data-img]").forEach(function (inp) {
+        var prev = inp.nextElementSibling;
+        var show = function () {
+          var u = inp.value.trim();
+          if (/^https?:\/\//i.test(u)) { prev.src = u; prev.classList.add("on"); } else prev.classList.remove("on");
+        };
+        inp.addEventListener("input", show);
+        setTimeout(show, 0);
+      });
+      if (editing) {
+        // ใส่ค่าเดิมลงในฟอร์ม
+        box.querySelectorAll("[data-col]").forEach(function (el) {
+          var v = editRow[el.dataset.col];
+          var s = v === null || v === undefined ? "" : String(v);
+          if (el.tagName === "SELECT" && s !== "" && !Array.prototype.some.call(el.options, function (o) { return o.value === s; })) {
+            var o = document.createElement("option"); o.value = s; o.textContent = s; el.appendChild(o);
+          }
+          el.value = s;
+          if (el.value !== s) { el.type = "text"; el.value = s; }   // ค่าเดิมไม่ตรงรูปแบบช่อง เช่น วันที่ ให้แก้เป็นข้อความแทน
+          el.dataset.orig = s;
+        });
+        document.getElementById("cancel-edit").onclick = function () {
+          document.querySelectorAll("#grid tr.picked").forEach(function (x) { x.classList.remove("picked"); });
+          renderForm(t);
+        };
+        document.getElementById("add-form").addEventListener("submit", function (ev) { ev.preventDefault(); updateRow(t, editRow); });
+      } else {
+        document.getElementById("add-form").addEventListener("submit", function (ev) { ev.preventDefault(); insertRow(t); });
+      }
+    }
+
+    function formValue(el) {
+      var v = el.value;
+      if (v === "") return null;
+      if (el.type === "number" && !isNaN(Number(v))) return Number(v);
+      if (el.tagName === "SELECT" && /^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+      return v;
+    }
+
+    function updateRow(t, r) {
+      var cols = [], vals = [];
+      document.querySelectorAll("#add-form [data-col]").forEach(function (el) {
+        if (el.value === el.dataset.orig) return;          // ส่งเฉพาะคอลัมน์ที่เปลี่ยน
+        cols.push(el.dataset.col); vals.push(formValue(el));
+      });
+      var msg = document.getElementById("form-msg");
+      if (!cols.length) { msg.innerHTML = '<div class="msg err">ยังไม่ได้แก้ข้อมูลช่องไหนเลย</div>'; return; }
+      var w = whereFor(t, r);
+      var shownWhere = rowKeyCols(t).map(function (k) { return (k === "rowid" ? "rowid" : q(k)) + " = " + lit(r[k === "rowid" ? "__rowid" : k]); }).join(" AND ");
+      var sql = "UPDATE " + q(t.name) + " SET " + cols.map(function (c) { return q(c) + " = ?"; }).join(", ") + " WHERE " + w.sql;
+      var shown = "UPDATE " + q(t.name) + "\nSET " + cols.map(function (c, i) { return q(c) + " = " + lit(vals[i]); }).join(",\n    ") + "\nWHERE " + shownWhere + ";";
+      busy(true);
+      execWrite(sql, vals.concat(w.params), function () {
+        busy(false);
+        logSql(shown);
+        changed();
+        freshRowKey = rowKeyCols(t).map(function (k) {
+          var i = cols.indexOf(k);
+          return String(i === -1 ? r[k === "rowid" ? "__rowid" : k] : vals[i]);
+        }).join("|");
+        readSchema();
+        rerenderKeepView();
+        document.getElementById("detail").hidden = true;
+        document.getElementById("form-msg").innerHTML = '<div class="msg ok"><b>แก้ไขแล้ว' + savedWhere() + '</b> แถวที่แก้เป็นสีเขียวในตาราง</div>' + sqlBox(shown);
+      }, function (e) {
+        busy(false);
+        logSql(shown, true);
+        msg.innerHTML = '<div class="msg err"><b>แก้ไขไม่ได้</b> ' + friendly(e).html + "</div>" + sqlBox(shown);
+      });
+    }
+
+    // ข้อความบอกว่าบันทึกไว้ที่ไหน
+    function savedWhere() { return serverMode ? " และบันทึกลงฐานข้อมูลบนเซิร์ฟเวอร์แล้ว" : ""; }
+
+    // ล็อกปุ่มระหว่างรอเซิร์ฟเวอร์ กันกดซ้ำ
+    function busy(on) {
+      document.querySelectorAll("#add-form button, #grid button").forEach(function (b) { b.disabled = on; });
+    }
+
+    function insertRow(t) {
+      var cols = [], vals = [];
+      document.querySelectorAll("#add-form [data-col]").forEach(function (el) {
+        var v = el.value;
+        if (v === "") {
+          var col = t.cols.filter(function (c) { return c.name === el.dataset.col; })[0];
+          if (col && col.dflt_value !== null) return;   // ปล่อยให้ใช้ค่าเริ่มต้น
+        }
+        cols.push(el.dataset.col); vals.push(formValue(el));
+      });
+      var sql = cols.length
+        ? "INSERT INTO " + q(t.name) + " (" + cols.map(q).join(", ") + ")\nVALUES (" + cols.map(function () { return "?"; }).join(", ") + ");"
+        : "INSERT INTO " + q(t.name) + " DEFAULT VALUES;";
+      var shown = cols.length
+        ? "INSERT INTO " + q(t.name) + " (" + cols.map(q).join(", ") + ")\nVALUES (" + vals.map(lit).join(", ") + ");"
+        : sql;
+      var msg = document.getElementById("form-msg");
+      busy(true);
+      execWrite(sql, vals, function (res) {
+        busy(false);
+        var newId = res.lastId;
+        logSql(shown);
+        changed();
+        var key = null;
+        if (t.autoPk) key = String(newId);
+        else if (rowKeyCols(t)[0] === "rowid") key = String(newId);
+        else key = rowKeyCols(t).map(function (k) { return String(vals[cols.indexOf(k)]); }).join("|");
+        freshRowKey = key;
+        readSchema();
+        rerenderKeepView();
+        document.getElementById("form-msg").innerHTML = '<div class="msg ok"><b>เพิ่มข้อมูลแล้ว' + savedWhere() + '</b> แถวใหม่เป็นสีเขียวในตาราง</div>' + sqlBox(shown);
+      }, function (e) {
+        busy(false);
+        msg.innerHTML = '<div class="msg err"><b>บันทึกไม่ได้</b> ' + friendly(e).html + "</div>" + sqlBox(shown);
+        logSql(shown, true);
+      });
+    }
+
+    function deleteRow(t, r) {
+      var w = whereFor(t, r);
+      var shownWhere = rowKeyCols(t).map(function (k) { return (k === "rowid" ? "rowid" : q(k)) + " = " + lit(r[k === "rowid" ? "__rowid" : k]); }).join(" AND ");
+      var shown = "DELETE FROM " + q(t.name) + "\nWHERE " + shownWhere + ";";
+      var msg = document.getElementById("form-msg");
+      busy(true);
+      execWrite("DELETE FROM " + q(t.name) + " WHERE " + w.sql, w.params, function () {
+        busy(false);
+        logSql(shown);
+        changed();
+        freshRowKey = null;
+        readSchema();
+        rerenderKeepView();
+        document.getElementById("detail").hidden = true;
+        document.getElementById("form-msg").innerHTML = '<div class="msg ok"><b>ลบแล้ว 1 แถว' + savedWhere() + '</b></div>' + sqlBox(shown);
+      }, function (e) {
+        busy(false);
+        logSql(shown, true);
+        if (msg) msg.innerHTML = '<div class="msg err"><b>ลบไม่ได้</b> ' + friendly(e).html + "</div>" + sqlBox(shown);
+        if (msg) msg.scrollIntoView({ block: "nearest" });
+      });
+    }
+
+    function sqlBox(sql) {
+      return '<details class="sql" open><summary>SQL ที่เว็บเพิ่งรัน</summary><pre class="code">' + highlight(sql) + "</pre></details>";
+    }
+
+    // ---------- ลองเขียน SQL ----------
+    function renderExamples() {
+      var ex = [];
+      if (schema.length) ex.push(["ดูทุกแถว", "SELECT *\nFROM " + q(schema[0].name) + "\nLIMIT 10;"]);
+      var child = schema.filter(function (t) { return singleFks(t).length; })[0];
+      if (child) {
+        var f = singleFks(child)[0];
+        var p = findTable(f.table);
+        var lc = p && labelCol(p);
+        if (p) {
+          ex.push(["JOIN สองตาราง",
+            "SELECT c.*, p." + q(lc || f.to) + "\nFROM " + q(child.name) + " AS c\nJOIN " + q(p.name) + " AS p ON p." + q(f.to) + " = c." + q(f.from) + "\nLIMIT 20;"]);
+          ex.push(["นับจำนวน (GROUP BY)",
+            "SELECT p." + q(lc || f.to) + ", COUNT(c." + q(f.from) + ") AS total\nFROM " + q(p.name) + " AS p\nLEFT JOIN " + q(child.name) + " AS c ON c." + q(f.from) + " = p." + q(f.to) + "\nGROUP BY p." + q(f.to) + "\nORDER BY total DESC;"]);
+        }
+      }
+      var withText = schema.map(function (t) { return { t: t, c: labelCol(t) }; }).filter(function (x) { return x.c; })[0];
+      if (withText) ex.push(["ค้นหาด้วย WHERE", "SELECT *\nFROM " + q(withText.t.name) + "\nWHERE " + q(withText.c) + " LIKE '%a%';"]);
+      ex.push(["ดูโครงสร้างตาราง", "SELECT name, sql\nFROM sqlite_master\nWHERE type = 'table';"]);
+      var box = document.getElementById("examples");
+      box.innerHTML = ex.map(function (e, i) { return '<button class="chip" data-ex="' + i + '">' + esc(e[0]) + "</button>"; }).join("");
+      box.querySelectorAll("[data-ex]").forEach(function (b) {
+        b.onclick = function () { document.getElementById("editor").value = ex[+b.dataset.ex][1]; runEditor(); };
+      });
+      var ed = document.getElementById("editor");
+      if (!ed.value && ex.length) ed.value = ex[0][1];
+    }
+
+    function runEditor() {
+      var sql = document.getElementById("editor").value.trim();
+      var out = document.getElementById("sql-result");
+      if (!sql) { out.innerHTML = '<div class="msg err">พิมพ์คำสั่ง SQL ก่อนกดรัน</div>'; return; }
+      if (serverMode) {
+        var body = sql.replace(/--[^\n]*/g, "").trim().replace(/;\s*$/, "");
+        var first = (body.match(/^\s*([A-Za-z]+)/) || [])[1] || "";
+        first = first.toUpperCase();
+        if (/^(INSERT|UPDATE|DELETE|REPLACE)$/.test(first)) {
+          if (body.indexOf(";") !== -1) { out.innerHTML = '<div class="msg err">ส่งคำสั่งที่แก้ข้อมูลได้ทีละ 1 คำสั่ง ลบคำสั่งอื่นออกก่อน</div>'; return; }
+          out.innerHTML = '<div class="msg ok">กำลังส่งไปบันทึกที่เซิร์ฟเวอร์…</div>';
+          execWrite(body, [], function (res) {
+            logSql(sql); changed(); rerenderKeepView();
+            out.innerHTML = '<div class="msg ok"><b>แก้ไขข้อมูลแล้ว ' + (res.changes || 0) + ' แถว และบันทึกลงฐานข้อมูลบนเซิร์ฟเวอร์แล้ว</b> ทุกคนเห็นข้อมูลนี้</div>';
+          }, function (e) {
+            logSql(sql, true);
+            out.innerHTML = '<div class="msg err"><b>รันไม่ได้</b> ' + friendly(e).html + "</div>";
+          });
+          return;
+        }
+        if (/^(CREATE|DROP|ALTER|ATTACH|DETACH|VACUUM|REINDEX|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)$/.test(first)) {
+          logSql(sql, true);
+          out.innerHTML = '<div class="msg err"><b>เว็บที่ใช้งานจริงไม่อนุญาตให้แก้โครงสร้างตารางผ่านหน้าเว็บ</b> เพื่อความปลอดภัย ไม่อย่างนั้นใครก็สั่ง DROP TABLE ลบตารางทิ้งได้ ให้แก้ใน DB Browser แล้วอัปโหลด database.db ใหม่</div>';
+          return;
+        }
+      }
+      var before = totalChanges();
+      var results;
+      try { results = db.exec(sql); } catch (e) {
+        logSql(sql, true);
+        out.innerHTML = '<div class="msg err"><b>รันไม่ได้</b> ' + friendly(e).html + "</div>";
+        return;
+      }
+      logSql(sql);
+      var modified = totalChanges() - before;
+      var html = "";
+      if (modified > 0 || /\b(CREATE|DROP|ALTER)\b/i.test(sql)) {
+        changed();
+        readSchema();
+        renderStats(); renderChips(); renderDiagram(); renderExamples();
+        if (!findTable(current)) current = schema.length ? schema[0].name : null;
+        renderTable(); renderStore();
+        html += '<div class="msg ok"><b>แก้ไขข้อมูลแล้ว ' + modified + " แถว</b> ดูผลได้ในแท็บ “ข้อมูลในตาราง”</div>";
+      }
+      if (!results.length && !html) html = '<div class="msg ok">รันสำเร็จ แต่ไม่มีผลลัพธ์ให้แสดง</div>';
+      results.forEach(function (r) {
+        html += '<p class="count" style="margin:14px 0 6px">ผลลัพธ์ ' + r.values.length + " แถว</p>" +
+          '<div class="grid-scroll"><table class="data"><thead><tr>' + r.columns.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+          r.values.slice(0, 500).map(function (row) { return "<tr>" + row.map(function (v) { return "<td>" + cell(v) + "</td>"; }).join("") + "</tr>"; }).join("") +
+          "</tbody></table></div>";
+      });
+      out.innerHTML = html;
+    }
+
+    function totalChanges() { return rows("SELECT total_changes() AS n")[0].n; }
+
+    // ---------- สถานะการแก้ไข / ดาวน์โหลด ----------
+    function changed() { changes++; saveLocal(); updateSession(); }
+    function updateSession() {
+      var s = document.getElementById("session");
+      if (serverMode) {
+        s.classList.add("on", "server");
+        document.getElementById("reset").hidden = true;
+        document.getElementById("run-hint").textContent = "SELECT รันในเบราว์เซอร์ · INSERT, UPDATE, DELETE ส่งไปบันทึกที่เซิร์ฟเวอร์ทีละ 1 คำสั่ง";
+        document.getElementById("session-text").innerHTML =
+          "<b>🟢 เชื่อมต่อฐานข้อมูลบนเซิร์ฟเวอร์</b> ทุกการเพิ่ม แก้ไข ลบ บันทึกลงไฟล์ database.db บนเซิร์ฟเวอร์ทันที " +
+          "ทุกคนที่เปิดเว็บนี้เห็นข้อมูลชุดเดียวกัน เว็บตรวจข้อมูลใหม่ทุก 5 วินาที" +
+          (pendingRemote ? ' · <b>มีข้อมูลใหม่จากคนอื่น</b> <button class="btn small" id="pull-now" type="button">โหลดข้อมูลล่าสุด</button>' : "");
+        var pull = document.getElementById("pull-now");
+        if (pull) pull.onclick = function () {
+          reloadFromServer().then(function () { pendingRemote = false; rerenderKeepView(); updateSession(); });
+        };
+        return;
+      }
+      s.classList.toggle("on", changes > 0);
+      document.getElementById("session-text").innerHTML = canSave
+        ? (restored ? "<b>กำลังใช้ข้อมูลที่คุณแก้ไว้ครั้งก่อน</b> " : "") +
+          "<b>แก้ไขไปแล้ว " + changes + " ครั้ง และบันทึกไว้ในเบราว์เซอร์นี้</b> รีเฟรชหรือปิดเปิดใหม่ก็ยังอยู่ " +
+          "แต่คนอื่นที่เปิดเว็บนี้จะไม่เห็น เพราะเว็บแบบ static ไม่มีเซิร์ฟเวอร์คอยบันทึกไฟล์กลาง " +
+          "ถ้าอยากให้ทุกคนเห็น ให้ดาวน์โหลด database.db แล้วอัปโหลดขึ้น GitHub แทนไฟล์เดิม"
+        : "<b>แก้ไขไปแล้ว " + changes + " ครั้ง</b> เบราว์เซอร์นี้บันทึกข้อมูลไม่ได้ ถ้ารีเฟรช ข้อมูลจะกลับเป็นแบบเดิม " +
+          "กดดาวน์โหลด database.db เพื่อเก็บสิ่งที่แก้ไว้";
+    }
+
+    // ---------- บันทึกการแก้ไขไว้ในเบราว์เซอร์ (IndexedDB) ----------
+    function saveKey() { return location.pathname + "::" + dbFileName; }
+
+    // ลายนิ้วมือของไฟล์ต้นฉบับ ถ้าไฟล์บนเว็บถูกอัปเดต จะเริ่มจากไฟล์ใหม่แทนของที่บันทึกไว้
+    function fingerprint(bytes) {
+      var h = 2166136261;
+      for (var i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 16777619); }
+      return bytes.length + "-" + (h >>> 0).toString(16);
+    }
+
+    function idb(mode, work) {
+      return new Promise(function (resolve, reject) {
+        var req;
+        try { req = indexedDB.open("it234-db-site", 1); } catch (e) { return reject(e); }
+        req.onupgradeneeded = function () { req.result.createObjectStore("saves"); };
+        req.onerror = function () { reject(req.error); };
+        req.onsuccess = function () {
+          var tx = req.result.transaction("saves", mode);
+          var out = work(tx.objectStore("saves"));
+          tx.oncomplete = function () { resolve(out && out.result); req.result.close(); };
+          tx.onerror = function () { reject(tx.error); req.result.close(); };
+        };
+      });
+    }
+
+    function openWithSaved(fileBytes) {
+      var fp = fingerprint(fileBytes);
+      idb("readonly", function (s) { return s.get(saveKey()); })
+        .then(function (saved) {
+          if (saved && saved.orig === fp && saved.bytes) {
+            openDb(new Uint8Array(saved.bytes), fileBytes, saved.changes || 1);
+          } else {
+            if (saved) idb("readwrite", function (s) { return s.delete(saveKey()); }).catch(function () {});
+            openDb(fileBytes);
+          }
+        })
+        .catch(function () { canSave = false; openDb(fileBytes); });
+    }
+
+    function saveLocal() {
+      if (!canSave || !db) return;
+      var bytes = db.export();
+      db.exec("PRAGMA foreign_keys = ON;");
+      var record = { orig: fingerprint(originalBytes), bytes: bytes, changes: changes, at: Date.now() };
+      idb("readwrite", function (s) { return s.put(record, saveKey()); })
+        .catch(function () { canSave = false; updateSession(); });
+    }
+    document.getElementById("download").onclick = function () {
+      var bytes = db.export();
+      db.exec("PRAGMA foreign_keys = ON;");
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/x-sqlite3" }));
+      a.download = "database.db";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    };
+    document.getElementById("reset").onclick = function () {
+      db.close();
+      current = null; freshRowKey = null;
+      idb("readwrite", function (s) { return s.delete(saveKey()); }).catch(function () {});
+      openDb(originalBytes);
+      document.getElementById("detail").hidden = true;
+      document.getElementById("sql-result").innerHTML = "";
+      logSql("-- กลับไปใช้ข้อมูลเดิมจากไฟล์ " + dbFileName);
+    };
+
+    // ---------- แถบ SQL ล่าสุด ----------
+    function logSql(sql, failed) {
+      logItems.unshift({ sql: sql, failed: failed, at: new Date() });
+      if (logItems.length > 50) logItems.pop();
+      document.getElementById("log-last").textContent = (failed ? "✕ " : "") + sql.replace(/\s+/g, " ");
+      document.getElementById("log-n").textContent = logItems.length + " คำสั่ง · กดเพื่อดูทั้งหมด";
+      document.getElementById("log-list").innerHTML = logItems.map(function (x) {
+        return '<div><span class="when">' + x.at.toLocaleTimeString("th-TH") + (x.failed ? " · ไม่สำเร็จ" : "") + "</span><pre>" + highlight(x.sql) + "</pre></div>";
+      }).join("");
+      var log = document.getElementById("log");
+      log.classList.remove("flash"); void log.offsetWidth; log.classList.add("flash");
+    }
+    document.getElementById("log-bar").onclick = function () {
+      var log = document.getElementById("log");
+      var open = log.classList.toggle("open");
+      this.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    // ---------- แท็บ ----------
+    function switchTab(name) {
+      document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-selected", b.dataset.tab === name ? "true" : "false"); });
+      document.querySelectorAll(".panel").forEach(function (p) { p.hidden = p.id !== "tab-" + name; });
+      if (name === "diagram") requestAnimationFrame(drawLines);
+      if (name === "store") renderStore();
+    }
+    document.querySelectorAll(".tab").forEach(function (b) { b.onclick = function () { switchTab(b.dataset.tab); }; });
+    document.getElementById("join-toggle").onchange = function () { renderTable(true); };
+    var searchTimer = null;
+    document.getElementById("search").addEventListener("input", function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () { renderTable(true); }, 300);
+    });
+    document.getElementById("run").onclick = runEditor;
+    document.getElementById("editor").addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); runEditor(); }
+    });
+    window.addEventListener("resize", function () { requestAnimationFrame(drawLines); });
+
+    // ---------- ข้อความเมื่อเกิดปัญหา ----------
+    function showState(kind, title, body) {
+      document.getElementById("state").innerHTML = '<div class="state ' + (kind === "err" ? "err" : "") + '"><b class="title">' + title + "</b>" + body + "</div>";
+      if (document.getElementById("title").textContent === "กำลังเปิดฐานข้อมูล…") document.getElementById("title").textContent = "ฐานข้อมูลของฉัน";
+    }
+
+    function showPicker(title, body) {
+      showState("err", title, body +
+        '<div class="drop" id="drop">ลากไฟล์ <code>.db</code> มาวางตรงนี้ หรือ <label style="color:var(--cobalt);font-weight:600;cursor:pointer">เลือกไฟล์จากเครื่อง' +
+        '<input type="file" id="pick" accept=".db,.sqlite,.sqlite3,.db3" hidden></label></div>');
+      var drop = document.getElementById("drop");
+      document.getElementById("pick").onchange = function () { if (this.files[0]) readLocal(this.files[0]); };
+      drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+      drop.addEventListener("drop", function (e) { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) readLocal(e.dataTransfer.files[0]); });
+    }
+
+    function readLocal(file) {
+      file.arrayBuffer().then(function (buf) {
+        if (!isSqlite(buf)) return showPicker("ไฟล์นี้ไม่ใช่ฐานข้อมูล SQLite", "เลือกไฟล์ที่สร้างจาก DB Browser for SQLite (นามสกุล .db) ไม่ใช่ไฟล์ .sqbpro หรือ .sql");
+        if (!SQL) return showState("err", "ตัว SQLite ยังโหลดไม่เสร็จ", "รอสักครู่แล้วลองใหม่");
+        dbFileName = file.name;
+        openWithSaved(new Uint8Array(buf));
+      });
+    }
+
+    function friendly(e) {
+      var m = String(e && e.message || e);
+      var text, r;
+      if ((r = m.match(/UNIQUE constraint failed: ([\w.฀-๿]+)/))) text = "ค่าใน <code>" + esc(r[1]) + "</code> ซ้ำกับข้อมูลที่มีอยู่แล้ว คอลัมน์นี้ตั้งเป็น UNIQUE หรือเป็น PRIMARY KEY จึงห้ามซ้ำ";
+      else if ((r = m.match(/NOT NULL constraint failed: ([\w.฀-๿]+)/))) text = "ต้องกรอก <code>" + esc(r[1]) + "</code> เพราะคอลัมน์นี้ตั้งเป็น NOT NULL ห้ามว่าง";
+      else if (/FOREIGN KEY constraint failed/.test(m)) text = "ติด FOREIGN KEY: ข้อมูลอ้างถึงแถวที่ไม่มีอยู่จริง หรือยังมีแถวในตารางอื่นอ้างถึงแถวนี้อยู่ จึงลบไม่ได้ ต้องลบแถวที่อ้างถึงก่อน";
+      else if ((r = m.match(/CHECK constraint failed: (.+)/))) text = "ค่าไม่ผ่านเงื่อนไข CHECK ที่ตั้งไว้ในตาราง (<code>" + esc(r[1]) + "</code>)";
+      else if ((r = m.match(/no such table: (.+)/))) text = "ไม่มีตารางชื่อ <code>" + esc(r[1]) + "</code> ตรวจการสะกดชื่อตาราง";
+      else if ((r = m.match(/no such column: (.+)/))) text = "ไม่มีคอลัมน์ชื่อ <code>" + esc(r[1]) + "</code> ตรวจการสะกดชื่อคอลัมน์";
+      else if ((r = m.match(/near "(.*)": syntax error/))) text = "SQL เขียนผิดใกล้ ๆ คำว่า <code>" + esc(r[1]) + "</code> ตรวจเครื่องหมาย , ( ) ' และการสะกดคำสั่ง";
+      else if (/incomplete input/.test(m)) text = "คำสั่ง SQL ยังไม่จบ อาจลืมปิดวงเล็บหรือเครื่องหมาย '";
+      else if (/datatype mismatch/.test(m)) text = "ชนิดข้อมูลไม่ตรงกับคอลัมน์ เช่น ใส่ตัวหนังสือในคอลัมน์ INTEGER PRIMARY KEY";
+      else text = "เกิดข้อผิดพลาดจาก SQLite";
+      return { html: text + "<small>" + esc(m) + "</small>" };
+    }
+
+    // ---------- เครื่องมือเล็ก ๆ ----------
+    function rows(sql, params) {
+      var stmt = db.prepare(sql);
+      if (params) stmt.bind(params);
+      var out = [];
+      while (stmt.step()) out.push(stmt.getAsObject());
+      stmt.free();
+      return out;
+    }
+    function q(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
+    function lit(v) {
+      if (v === null || v === undefined) return "NULL";
+      if (typeof v === "number") return String(v);
+      return "'" + String(v).replace(/'/g, "''") + "'";
+    }
+    function cell(v) {
+      if (v === null || v === undefined) return '<span class="null">NULL</span>';
+      if (v instanceof Uint8Array) return '<span class="null">[ข้อมูลไบนารี ' + v.length + " ไบต์]</span>";
+      return esc(v);
+    }
+    // กันไม่ให้ข้อความในฐานข้อมูลกลายเป็นโค้ด HTML (เรื่อง Security!)
+    function esc(v) {
+      return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    function unesc(s) {
+      var d = document.createElement("textarea"); d.innerHTML = s; return d.value;
+    }
+    function cssEsc(s) { return window.CSS && CSS.escape ? CSS.escape(s) : String(s).replace(/"/g, '\\"'); }
+    function highlight(sql) {
+      var token = /('(?:[^']|'')*')|("(?:[^"]|"")*")|(--[^\n]*)|\b(\d+(?:\.\d+)?)\b|\b(SELECT|FROM|WHERE|JOIN|LEFT|INNER|ON|AS|AND|OR|NOT|NULL|ORDER|BY|GROUP|HAVING|LIMIT|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|DROP|ALTER|PRIMARY|KEY|FOREIGN|REFERENCES|UNIQUE|DEFAULT|COUNT|SUM|AVG|MIN|MAX|LIKE|IN|IS|DESC|ASC|DISTINCT|INTEGER|TEXT|REAL|PRAGMA)\b/gi;
+      var out = "", last = 0, m;
+      while ((m = token.exec(sql)) !== null) {
+        out += esc(sql.slice(last, m.index));
+        if (m[1]) out += '<span class="str">' + esc(m[1]) + "</span>";
+        else if (m[2]) out += esc(m[2]);
+        else if (m[3]) out += '<span style="color:#7C82AA">' + esc(m[3]) + "</span>";
+        else if (m[4]) out += '<span class="num">' + m[4] + "</span>";
+        else out += '<span class="kw">' + m[5] + "</span>";
+        last = token.lastIndex;
+      }
+      return out + esc(sql.slice(last));
+    }
+  </script>
+</body>
+</html>
